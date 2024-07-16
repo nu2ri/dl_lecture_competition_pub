@@ -1,6 +1,4 @@
-import re
-import random
-import time
+import re, random, time
 from statistics import mode
 
 from PIL import Image
@@ -10,6 +8,8 @@ import torch
 import torch.nn as nn
 import torchvision
 from torchvision import transforms
+from pytorch_optimizer import *
+from tqdm import tqdm
 
 
 def set_seed(seed):
@@ -360,7 +360,7 @@ def eval(model, dataloader, optimizer, criterion, device):
 
 def main():
     # deviceの設定
-    set_seed(42)
+    set_seed(3407)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # dataloader / model
@@ -380,16 +380,19 @@ def main():
     # optimizer / criterion
     num_epoch = 20
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    optimizer = RAdam(model.parameters(), lr=1e-3, weight_decay=1e-5, weight_decouple=True, adam_debias=True)
+    # scheduler = CosineAnnealingWarmupRestarts(optimizer, max_lr=1e-3, min_lr=9e-5, first_cycle_steps=num_epoch, warmup_steps=3)
 
     # train model
-    for epoch in range(num_epoch):
+    for epoch in tqdm(range(num_epoch)):
         train_loss, train_acc, train_simple_acc, train_time = train(model, train_loader, optimizer, criterion, device)
         print(f"【{epoch + 1}/{num_epoch}】\n"
               f"train time: {train_time:.2f} [s]\n"
               f"train loss: {train_loss:.4f}\n"
               f"train acc: {train_acc:.4f}\n"
               f"train simple acc: {train_simple_acc:.4f}")
+        # scheduler.step()
 
     # 提出用ファイルの作成
     model.eval()
