@@ -139,43 +139,40 @@ class VQADataset(Dataset):
             else:
                 raise e
 
-    def fit_zca_whitening(self, batch_size=2):
+    def fit_zca_whitening(self, batch_size=64):
         print("Fitting ZCA Whitening...")
         if self.preload:
-            images = torch.stack(self.images)
-            self.zca_whitening.fit(images)
+            image_dataset = torch.utils.data.TensorDataset(torch.stack(self.images))
         else:
-            temp_loader = DataLoader(
-                self,
-                batch_size=batch_size,
-                shuffle=False,
-                num_workers=4,
-                collate_fn=lambda x: [item[0] for item in x]
+            image_dataset = torch.utils.data.Dataset.from_iterable(
+                (self.preload_transform(Image.open(os.path.join(self.image_dir, self.df.iloc[i]['image'])).convert("RGB")).unsqueeze(0)
+                 for i in range(len(self.df)))
             )
-            n_samples = 0
-            mean_sum = None
-            cov_sum = None
-            for batch in tqdm(temp_loader, desc="Computing ZCA parameters"):
-                batch = torch.stack(batch).to(device)
-                batch_size = batch.size(0)
-                n_samples += batch_size
-                batch = batch.view(batch_size, -1)
-                if mean_sum is None:
-                    mean_sum = torch.sum(batch, dim=0)
-                else:
-                    mean_sum += torch.sum(batch, dim=0)
-                if cov_sum is None:
-                    cov_sum = torch.mm(batch.t(), batch)
-                else:
-                    cov_sum += torch.mm(batch.t(), batch)
-                torch.cuda.empty_cache()
-            self.zca_whitening.mean = (mean_sum / n_samples).unsqueeze(0)
-            sigma = (cov_sum / n_samples) - torch.mm(self.zca_whitening.mean.t(), self.zca_whitening.mean)
-            U, S, V = torch.svd(sigma)
-            self.zca_whitening.zca_matrix = torch.mm(
-                torch.mm(U, torch.diag(1.0 / torch.sqrt(S + self.zca_whitening.epsilon))),
-                U.t()
-            )
+        dataloader = DataLoader(image_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+        n_samples = 0
+        mean_sum = None
+        cov_sum = None
+        for batch in tqdm(dataloader, desc="Computing ZCA parameters"):
+            batch = batch[0].to(device)
+            batch_size = batch.size(0)
+            n_samples += batch_size
+            batch = batch.view(batch_size, -1)
+            if mean_sum is None:
+                mean_sum = torch.sum(batch, dim=0)
+            else:
+                mean_sum += torch.sum(batch, dim=0)
+            if cov_sum is None:
+                cov_sum = torch.mm(batch.t(), batch)
+            else:
+                cov_sum += torch.mm(batch.t(), batch)
+            torch.cuda.empty_cache()
+        self.zca_whitening.mean = (mean_sum / n_samples).unsqueeze(0)
+        sigma = (cov_sum / n_samples) - torch.mm(self.zca_whitening.mean.t(), self.zca_whitening.mean)
+        U, S, V = torch.svd(sigma)
+        self.zca_whitening.zca_matrix = torch.mm(
+            torch.mm(U, torch.diag(1.0 / torch.sqrt(S + self.zca_whitening.epsilon))),
+            U.t()
+        )
         self.zca_whitening = self.zca_whitening.to(device)
         print("ZCA Whitening fitted.")
 
@@ -375,8 +372,8 @@ def main():
     set_seed(3407)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_dataset = VQADataset(df_path="./data/train.json", image_dir="./data/train", preload=True)
-    # train_dataset.fit_zca_whitening()
-    batch_size = 32 if train_dataset.preload else 16
+    train_dataset.fit_zca_whitening(batch_size=32)
+    batch_size = 128 if train_dataset.preload else 64
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 
     test_dataset = VQADataset(df_path="./data/valid.json", image_dir="./data/valid", answer=False, preload=False)
