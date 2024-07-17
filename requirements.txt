@@ -5,3 +5,8 @@ torchaudio
 pandas
 numpy<2
 pytorch-optimizer
+tqdm
+transformers
+sentencepiece
+protobuf
+# accelerate==0.25.0
