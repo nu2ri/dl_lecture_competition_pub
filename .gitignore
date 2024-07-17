@@ -1,5 +1,5 @@
 data/*
 venv/*
 
-model.pth
-submission.npy
+*.pth
+*.npy
