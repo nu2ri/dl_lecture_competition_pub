@@ -380,9 +380,8 @@ def main():
     # optimizer / criterion
     num_epoch = 20
     criterion = nn.CrossEntropyLoss()
-    # optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     optimizer = RAdam(model.parameters(), lr=1e-3, weight_decay=1e-5, weight_decouple=True, adam_debias=True)
-    # scheduler = CosineAnnealingWarmupRestarts(optimizer, max_lr=1e-3, min_lr=9e-5, first_cycle_steps=num_epoch, warmup_steps=3)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epoch)
 
     # train model
     for epoch in tqdm(range(num_epoch)):
@@ -392,7 +391,7 @@ def main():
               f"train loss: {train_loss:.4f}\n"
               f"train acc: {train_acc:.4f}\n"
               f"train simple acc: {train_simple_acc:.4f}")
-        # scheduler.step()
+        scheduler.step()
 
     # 提出用ファイルの作成
     model.eval()

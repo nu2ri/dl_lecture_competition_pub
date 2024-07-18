@@ -11,7 +11,7 @@ import torch.nn as nn
 import torchvision
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
-from pytorch_optimizer import RAdam
+from pytorch_optimizer import RAdam, Ranger
 from tqdm import tqdm
 from transformers import AlbertTokenizer, AlbertModel
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -369,11 +369,11 @@ def eval(model, dataloader, criterion, device):
     return total_loss / len(dataloader), correct / len(dataloader.dataset), simple_acc / len(dataloader), time.time() - start
 
 def main():
-    set_seed(3407)
+    set_seed(141421356)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     train_dataset = VQADataset(df_path="./data/train.json", image_dir="./data/train", preload=True)
-    train_dataset.fit_zca_whitening(batch_size=32)
-    batch_size = 128 if train_dataset.preload else 64
+    # train_dataset.fit_zca_whitening()
+    batch_size = 32 if train_dataset.preload else 16
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 
     test_dataset = VQADataset(df_path="./data/valid.json", image_dir="./data/valid", answer=False, preload=False)
@@ -384,7 +384,7 @@ def main():
 
     num_epoch = 10
     criterion = nn.CrossEntropyLoss()
-    optimizer = RAdam(model.parameters(), lr=1e-3, weight_decay=1e-5, weight_decouple=True, adam_debias=True)
+    optimizer = Ranger(model.parameters(), lr=1e-3, weight_decay=1e-5, weight_decouple=True, adam_debias=True)
 
     scaler = torch.cuda.amp.GradScaler()
 
